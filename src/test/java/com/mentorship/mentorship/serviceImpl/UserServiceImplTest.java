@@ -1,5 +1,7 @@
 package com.mentorship.mentorship.serviceImpl;
 
+import com.mentorship.mentorship.mapper.UserMapper;
+import com.mentorship.mentorship.model.Task;
 import com.mentorship.mentorship.model.User;
 import com.mentorship.mentorship.repository.UserRepository;
 import com.mentorship.mentorship.service.impl.UserServiceImpl;
@@ -8,6 +10,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +29,8 @@ class UserServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private UserMapper userMapper;
 
     private User user;
 
@@ -53,9 +61,13 @@ class UserServiceImplTest {
 
     @Test
     void testGetAllUsers() {
-        when(userRepository.findAll()).thenReturn(Collections.singletonList(user));
-        List<User> users = userService.getAllUsers();
-        assertEquals(1, users.size());
+        List<User> users = Collections.singletonList(user);
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<User> userPage = new PageImpl<>(users, pageable, users.size());
+        when(userRepository.findAll(pageable)).thenReturn(userPage);
+        Page<User> resultPage = userService.getAllUsers(pageable);
+        assertEquals(1, resultPage.getContent().size());
+        assertEquals(user, resultPage.getContent().get(0));
     }
 
     @Test

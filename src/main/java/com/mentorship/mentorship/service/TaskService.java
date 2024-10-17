@@ -1,8 +1,8 @@
 package com.mentorship.mentorship.service;
 
 import com.mentorship.mentorship.model.Task;
-
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface TaskService {
     Task createTask(Task task, Long userId);
@@ -11,7 +11,7 @@ public interface TaskService {
 
     Task getTaskById(Long taskId);
 
-    List<Task> getAllTasks();
+    Page<Task> getAllTasks(Pageable pageable);
 
     void deleteTask(Long taskId);
 }
