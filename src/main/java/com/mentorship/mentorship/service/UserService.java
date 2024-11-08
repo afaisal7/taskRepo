@@ -1,13 +1,14 @@
 package com.mentorship.mentorship.service;
 
-import com.mentorship.mentorship.model.User;
-import org.springframework.data.domain.Page;
+import com.mentorship.mentorship.dto.UserDto;
 import org.springframework.data.domain.Pageable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface UserService {
-    User createUser(User user);
-    User updateUser(Long id, User user);
-    User getUserById(Long id);
-    Page<User> getAllUsers(Pageable pageable);
-    void deleteUser(Long id);
+    Mono<UserDto> createUser(Mono<UserDto> user);
+    Mono<UserDto> getUserById(Long id);
+    Flux<UserDto> getAllUsers(Integer page, Integer size);
+    Mono<UserDto> updateUser(Long id, Mono<UserDto> mono);
+    Mono<Boolean> deleteUser(Long id);
 }

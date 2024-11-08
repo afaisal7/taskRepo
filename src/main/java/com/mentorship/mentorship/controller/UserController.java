@@ -1,16 +1,14 @@
 package com.mentorship.mentorship.controller;
 
 import com.mentorship.mentorship.dto.UserDto;
+import com.mentorship.mentorship.exception.ApplicationExceptions;
 import com.mentorship.mentorship.mapper.UserMapper;
-import com.mentorship.mentorship.model.User;
 import com.mentorship.mentorship.service.UserService;
-import jakarta.validation.Valid;
+import com.mentorship.mentorship.validator.UserValidator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
@@ -21,33 +19,35 @@ public class UserController {
     private final UserMapper userMapper;
 
     @PostMapping
-    public UserDto createUser(@RequestBody UserDto userDto) {
-        User createdUser = userService.createUser(userMapper.toEntity(userDto));
-        return userMapper.toDto(createdUser);
+    public Mono<UserDto> createUser(@RequestBody Mono<UserDto> mono) {
+        return mono.transform(UserValidator.validate())
+                .as(userService::createUser);
     }
 
     @GetMapping("/{id}")
-    public UserDto getUserById(@PathVariable Long id) {
-        return userMapper.toDto(userService.getUserById(id));
+    public Mono<UserDto> getUserById(@PathVariable Long id) {
+        return userService.getUserById(id)
+                .switchIfEmpty(ApplicationExceptions.userNotFound(id));
     }
 
     @GetMapping
-    public ResponseEntity<Page<UserDto>> getAllUsers(Pageable pageable) {
-        Page<User> userPage = userService.getAllUsers(pageable);
-        Page<UserDto> userDtoPage = userPage.map(userMapper::toDto);
-        return new ResponseEntity<>(userDtoPage, HttpStatus.OK);
+    public Flux<UserDto> getAllUsers(@RequestParam(defaultValue = "1") Integer page,
+                                     @RequestParam(defaultValue = "3") Integer size) {
+        return userService.getAllUsers(page, size);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UserDto> updateUser(@PathVariable Long id, @RequestBody @Valid UserDto userDto) {
-        User updatedUser = userService.updateUser(id, userMapper.toEntity(userDto));
-        return ResponseEntity.ok(userMapper.toDto(updatedUser));
+    public Mono<UserDto> updateUser(@PathVariable Long id, @RequestBody Mono<UserDto> userDto) {
+        return userDto.transform(UserValidator.validate())
+                .as(validReq -> userService.updateUser(id, validReq))
+                .switchIfEmpty(ApplicationExceptions.userNotFound(id));
     }
 
-
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
-        return ResponseEntity.noContent().build();
+    public Mono<Void> deleteUser(@PathVariable Long id) {
+        return userService.deleteUser(id)
+                .filter(b -> b)
+                .switchIfEmpty(ApplicationExceptions.userNotFound(id))
+                .then();
     }
 }

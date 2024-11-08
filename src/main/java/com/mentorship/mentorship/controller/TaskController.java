@@ -1,17 +1,14 @@
 package com.mentorship.mentorship.controller;
 
 import com.mentorship.mentorship.dto.TaskDto;
+import com.mentorship.mentorship.exception.ApplicationExceptions;
 import com.mentorship.mentorship.mapper.TaskMapper;
-import com.mentorship.mentorship.model.Task;
 import com.mentorship.mentorship.service.TaskService;
+import com.mentorship.mentorship.validator.TaskValidator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
@@ -21,34 +18,36 @@ public class TaskController {
     private final TaskMapper taskMapper;
 
     @PostMapping
-    public ResponseEntity<TaskDto> createTask(@RequestBody TaskDto taskDto, @RequestParam Long userId) {
-        Task createdTask = taskService.createTask(taskMapper.toEntity(taskDto), userId);
-        return new ResponseEntity<>(taskMapper.toDto(createdTask), HttpStatus.CREATED);
+    public Mono<TaskDto> createTask(@RequestBody Mono<TaskDto> mono, @RequestParam Long userId) {
+        return mono.transform(TaskValidator.validate())
+                .as(taskDtoMono -> taskService.createTask(taskDtoMono, userId));
     }
 
-    @PutMapping("/{taskId}")
-    public ResponseEntity<TaskDto> updateTask(@PathVariable Long taskId, @RequestBody TaskDto task) {
-        Task updatedTask = taskService.updateTask(taskId, taskMapper.toEntity(task));
-        return new ResponseEntity<>(taskMapper.toDto(updatedTask), HttpStatus.OK);
+    @PutMapping("/{id}")
+    public Mono<TaskDto> updateTask(@PathVariable Long id, @RequestBody Mono<TaskDto> mono) {
+        return mono.transform(TaskValidator.validate())
+                .as(validTask -> taskService.updateTask(id, validTask))
+                .switchIfEmpty(ApplicationExceptions.taskNotFound(id));
+
     }
 
-    @GetMapping("/{taskId}")
-    public ResponseEntity<TaskDto> getTask(@PathVariable Long taskId) {
-        Task task = taskService.getTaskById(taskId);
-        return new ResponseEntity<>(taskMapper.toDto(task), HttpStatus.OK);
+    @GetMapping("/{id}")
+    public Mono<TaskDto> getTaskById(@PathVariable Long id) {
+        return taskService.getTaskById(id).switchIfEmpty(ApplicationExceptions.taskNotFound(id));
     }
 
     @GetMapping
-    public ResponseEntity<Page<TaskDto>> getAllTasks(Pageable pageable) {
-        Page<Task> tasksPage = taskService.getAllTasks(pageable);
-        Page<TaskDto> taskDtoPage = tasksPage.map(taskMapper::toDto);
-        return new ResponseEntity<>(taskDtoPage, HttpStatus.OK);
+    public Flux<TaskDto> getAllTasks(@RequestParam(defaultValue = "1") Integer page,
+                                     @RequestParam(defaultValue = "3") Integer size) {
+        return taskService.getAllTasks(page, size);
     }
 
-    @DeleteMapping("/{taskId}")
-    public ResponseEntity<Void> deleteTask(@PathVariable Long taskId) {
-        taskService.deleteTask(taskId);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    @DeleteMapping("/{id}")
+    public Mono<Void> deleteTask(@PathVariable Long id) {
+        return taskService.deleteTask(id)
+                .filter(b -> b)
+                .switchIfEmpty(ApplicationExceptions.taskNotFound(id))
+                .then();
     }
 }
 

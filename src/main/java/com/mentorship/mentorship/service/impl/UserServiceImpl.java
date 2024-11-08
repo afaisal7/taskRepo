@@ -1,14 +1,14 @@
 package com.mentorship.mentorship.service.impl;
 
-import com.mentorship.mentorship.exception.ResourceNotFoundException;
+import com.mentorship.mentorship.dto.UserDto;
 import com.mentorship.mentorship.mapper.UserMapper;
-import com.mentorship.mentorship.model.User;
 import com.mentorship.mentorship.repository.UserRepository;
 import com.mentorship.mentorship.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -17,29 +17,35 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
 
     @Override
-    public User createUser(User user) {
-        return userRepository.save(user);
+    public Mono<UserDto> createUser(Mono<UserDto> mono) {
+        return mono.map(userMapper::toEntity)
+                .flatMap(this.userRepository::save)
+                .map(userMapper::toDto);
     }
 
     @Override
-    public User getUserById(Long id) {
-        return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+    public Mono<UserDto> getUserById(Long id) {
+        return this.userRepository.findById(id)
+                .map(userMapper::toDto);
     }
 
     @Override
-    public Page<User> getAllUsers(Pageable pageable) {
-        return userRepository.findAll(pageable);
+    public Flux<UserDto> getAllUsers(Integer page, Integer size) {
+        return userRepository.findBy(PageRequest.of(page - 1, size)).map(userMapper::toDto);
     }
 
     @Override
-    public User updateUser(Long id, User user) {
-        User existingUser = getUserById(id);
-        userMapper.mapUserForUpdate(existingUser, user);
-        return userRepository.save(existingUser);
+    public Mono<UserDto> updateUser(Long id, Mono<UserDto> mono) {
+        return this.userRepository.findById(id)
+                .flatMap(entity -> mono)
+                .map(userMapper::toEntity)
+                .doOnNext(c -> c.setId(id))
+                .flatMap(this.userRepository::save)
+                .map(userMapper::toDto);
     }
 
     @Override
-    public void deleteUser(Long id) {
-        userRepository.deleteById(id);
+    public Mono<Boolean> deleteUser(Long id) {
+        return userRepository.deleteUserById(id);
     }
 }

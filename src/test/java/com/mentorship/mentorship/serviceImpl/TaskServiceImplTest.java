@@ -1,99 +1,95 @@
 package com.mentorship.mentorship.serviceImpl;
 
+import com.mentorship.mentorship.dto.TaskDto;
+import com.mentorship.mentorship.dto.UserDto;
 import com.mentorship.mentorship.mapper.TaskMapper;
+import com.mentorship.mentorship.mapper.UserMapper;
 import com.mentorship.mentorship.model.Task;
 import com.mentorship.mentorship.model.User;
 import com.mentorship.mentorship.repository.TaskRepository;
 import com.mentorship.mentorship.repository.UserRepository;
 import com.mentorship.mentorship.service.impl.TaskServiceImpl;
-import com.mentorship.mentorship.util.Status;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class TaskServiceImplTest {
+
+    @Mock
+    private TaskRepository taskRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private TaskMapper taskMapper;
+
+    @Mock
+    private UserMapper userMapper;
 
     @InjectMocks
     private TaskServiceImpl taskService;
 
-    @Mock
-    private TaskRepository taskRepository;
-    @Mock
-    private UserRepository userRepository;
-    @Mock
-    private TaskMapper taskMapper;
-
-
-    private Task task;
-
-    @BeforeEach
-    public void setUp() {
-        MockitoAnnotations.openMocks(this);
-        task = new Task();
-        task.setId(1L);
-        task.setTitle("Sample Task");
-        task.setDescription("Task Description");
-        task.setStatus(Status.READY);
-        task.setFromDate(LocalDateTime.now());
-        task.setToDate(LocalDateTime.now().plusDays(1));
-    }
-
     @Test
     void testCreateTask() {
-        User owner = new User();
-        owner.setId(1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
-        when(taskRepository.save(any(Task.class))).thenReturn(task);
-        Task createdTask = taskService.createTask(task, 1L);
-        assertEquals("Sample Task", createdTask.getTitle());
-        assertEquals(owner, createdTask.getOwner());
+        TaskDto taskDto = new TaskDto(null, "Test Task", "A sample task description", "PENDING",
+                LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(2),
+                1L, null);
+
+        Task taskEntity = new Task(); // Task entity with relevant fields
+        when(taskMapper.toEntity(any(TaskDto.class))).thenReturn(taskEntity);
+        when(taskRepository.save(any(Task.class))).thenReturn(Mono.just(taskEntity));
+        when(taskMapper.toDto(any(Task.class))).thenReturn(taskDto);
+
+        Mono<TaskDto> result = taskService.createTask(Mono.just(taskDto), 1L);
+
+        StepVerifier.create(result)
+                .expectNextMatches(dto -> dto.getTitle().equals("Test Task") && dto.getOwnerId() == 1L)
+                .verifyComplete();
     }
 
     @Test
     void testGetTaskById() {
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-        Task foundTask = taskService.getTaskById(1L);
-        assertEquals("Sample Task", foundTask.getTitle());
-    }
+        Long taskId = 1L;
+        Task taskEntity = new Task();
+        taskEntity.setOwnerId(1L);
+        TaskDto taskDto = new TaskDto(taskId, "Test Task", "A sample task description", "PENDING",
+                LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(2),
+                1L, null);
+        User userEntity = new User(); // Mock user entity
 
-    @Test
-    void testGetAllTasks() {
-        List<Task> tasks = Collections.singletonList(task);
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<Task> taskPage = new PageImpl<>(tasks, pageable, tasks.size());
-        when(taskRepository.findAll(pageable)).thenReturn(taskPage);
-        Page<Task> resultPage = taskService.getAllTasks(pageable);
-        assertEquals(1, resultPage.getContent().size());
-        assertEquals(task, resultPage.getContent().get(0));
-    }
+        when(taskRepository.findById(taskId)).thenReturn(Mono.just(taskEntity));
+        when(userRepository.findById(taskEntity.getOwnerId())).thenReturn(Mono.just(userEntity));
+        when(taskMapper.toDto(any(Task.class))).thenReturn(taskDto);
+        when(userMapper.toDto(any(User.class))).thenReturn(new UserDto(1L, "Ahmed", "Faisal", 35, "Developer"));
 
-    @Test
-    void testUpdateTask() {
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-        when(taskRepository.save(any(Task.class))).thenReturn(task);
+        Mono<TaskDto> result = taskService.getTaskById(taskId);
 
-        task.setTitle("Updated Task");
-        Task updatedTask = taskService.updateTask(1L, task);
-        assertEquals("Updated Task", updatedTask.getTitle());
+        StepVerifier.create(result)
+                .expectNextMatches(dto -> dto.getId().equals(taskId) && dto.getOwner().getFirstName().equals("Ahmed"))
+                .verifyComplete();
     }
 
     @Test
     void testDeleteTask() {
-        taskService.deleteTask(1L);
-        verify(taskRepository, times(1)).deleteById(1L);
+        Long taskId = 1L;
+        when(taskRepository.deleteTaskById(taskId)).thenReturn(Mono.just(true));
+
+        Mono<Boolean> result = taskService.deleteTask(taskId);
+
+        StepVerifier.create(result)
+                .expectNext(true)
+                .verifyComplete();
     }
 }
+

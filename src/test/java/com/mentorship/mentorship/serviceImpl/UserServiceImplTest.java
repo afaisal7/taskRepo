@@ -1,88 +1,142 @@
 package com.mentorship.mentorship.serviceImpl;
 
+import com.mentorship.mentorship.dto.UserDto;
 import com.mentorship.mentorship.mapper.UserMapper;
-import com.mentorship.mentorship.model.Task;
 import com.mentorship.mentorship.model.User;
 import com.mentorship.mentorship.repository.UserRepository;
 import com.mentorship.mentorship.service.impl.UserServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private UserMapper userMapper;
 
     @InjectMocks
     private UserServiceImpl userService;
 
-    @Mock
-    private UserRepository userRepository;
-    @Mock
-    private UserMapper userMapper;
-
     private User user;
+    private UserDto userDto;
 
     @BeforeEach
-    public void setUp() {
-        MockitoAnnotations.openMocks(this);
-        user = new User();
-        user.setId(1L);
-        user.setFirstName("Ahmed");
-        user.setLastName("Faisal");
-        user.setAge(29);
-        user.setDesignation("Developer");
+    void setup() {
+        user = new User(1L, "Ahmed", "Faisal", 30, "Developer");
+        userDto = new UserDto(1L, "Ahmed", "Faisal", 30, "Developer");
     }
 
     @Test
     void testCreateUser() {
-        when(userRepository.save(any(User.class))).thenReturn(user);
-        User createdUser = userService.createUser(user);
-        assertEquals("Ahmed", createdUser.getFirstName());
+        when(userMapper.toEntity(any(UserDto.class))).thenReturn(user);
+        when(userRepository.save(any(User.class))).thenReturn(Mono.just(user));
+        when(userMapper.toDto(any(User.class))).thenReturn(userDto);
+
+        Mono<UserDto> result = userService.createUser(Mono.just(userDto));
+
+        StepVerifier.create(result)
+                .expectNext(userDto)
+                .verifyComplete();
+
+        verify(userMapper).toEntity(userDto);
+        verify(userRepository).save(user);
+        verify(userMapper).toDto(user);
     }
 
     @Test
     void testGetUserById() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        User foundUser = userService.getUserById(1L);
-        assertEquals("Faisal", foundUser.getLastName());
+        when(userRepository.findById(1L)).thenReturn(Mono.just(user));
+        when(userMapper.toDto(user)).thenReturn(userDto);
+
+        Mono<UserDto> result = userService.getUserById(1L);
+
+        StepVerifier.create(result)
+                .expectNext(userDto)
+                .verifyComplete();
+
+        verify(userRepository).findById(1L);
+        verify(userMapper).toDto(user);
+    }
+
+    @Test
+    void testGetUserByIdNotFound() {
+        when(userRepository.findById(1L)).thenReturn(Mono.empty());
+
+        Mono<UserDto> result = userService.getUserById(1L);
+
+        StepVerifier.create(result)
+                .verifyComplete();
+
+        verify(userRepository).findById(1L);
+        verify(userMapper, never()).toDto(any());
     }
 
     @Test
     void testGetAllUsers() {
-        List<User> users = Collections.singletonList(user);
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<User> userPage = new PageImpl<>(users, pageable, users.size());
-        when(userRepository.findAll(pageable)).thenReturn(userPage);
-        Page<User> resultPage = userService.getAllUsers(pageable);
-        assertEquals(1, resultPage.getContent().size());
-        assertEquals(user, resultPage.getContent().get(0));
+        when(userRepository.findBy(PageRequest.of(0, 3)))
+                .thenReturn(Flux.just(user));
+        when(userMapper.toDto(user)).thenReturn(userDto);
+
+        Flux<UserDto> result = userService.getAllUsers(1, 3);
+
+        StepVerifier.create(result)
+                .expectNext(userDto)
+                .verifyComplete();
+
+        verify(userRepository).findBy(PageRequest.of(0, 3));
+        verify(userMapper).toDto(user);
     }
 
     @Test
     void testUpdateUser() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(userRepository.save(any(User.class))).thenReturn(user);
+        when(userRepository.findById(1L)).thenReturn(Mono.just(user));
+        when(userMapper.toEntity(userDto)).thenReturn(user);
+        when(userRepository.save(user)).thenReturn(Mono.just(user));
+        when(userMapper.toDto(user)).thenReturn(userDto);
 
-        user.setFirstName("Jane");
-        User updatedUser = userService.updateUser(1L, user);
-        assertEquals("Jane", updatedUser.getFirstName());
+        Mono<UserDto> result = userService.updateUser(1L, Mono.just(userDto));
+
+        StepVerifier.create(result)
+                .expectNext(userDto)
+                .verifyComplete();
+
+        verify(userRepository).findById(1L);
+        verify(userMapper).toEntity(userDto);
+        verify(userRepository).save(user);
+        verify(userMapper).toDto(user);
     }
 
     @Test
     void testDeleteUser() {
-        userService.deleteUser(1L);
-        verify(userRepository, times(1)).deleteById(1L);
+        when(userRepository.deleteUserById(1L)).thenReturn(Mono.just(true));
+        Mono<Boolean> result = userService.deleteUser(1L);
+        StepVerifier.create(result)
+                .expectNext(true)
+                .verifyComplete();
+        verify(userRepository).deleteUserById(1L);
+    }
+
+    @Test
+    void testDeleteUserNotFound() {
+        when(userRepository.deleteUserById(1L)).thenReturn(Mono.just(false));
+        Mono<Boolean> result = userService.deleteUser(1L);
+        StepVerifier.create(result)
+                .expectNext(false)
+                .verifyComplete();
+        verify(userRepository).deleteUserById(1L);
     }
 }
+

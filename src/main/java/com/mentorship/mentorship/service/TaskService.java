@@ -1,17 +1,18 @@
 package com.mentorship.mentorship.service;
 
-import com.mentorship.mentorship.model.Task;
-import org.springframework.data.domain.Page;
+import com.mentorship.mentorship.dto.TaskDto;
 import org.springframework.data.domain.Pageable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface TaskService {
-    Task createTask(Task task, Long userId);
+    Mono<TaskDto> createTask(Mono<TaskDto> taskDtoMono, Long userId);
 
-    Task updateTask(Long taskId, Task updatedTask);
+    Mono<TaskDto> getTaskById(Long taskId);
 
-    Task getTaskById(Long taskId);
+    Flux<TaskDto> getAllTasks(Integer page, Integer size);
 
-    Page<Task> getAllTasks(Pageable pageable);
+    Mono<TaskDto> updateTask(Long id, Mono<TaskDto> mono);
 
-    void deleteTask(Long taskId);
+    Mono<Boolean> deleteTask(Long taskId);
 }

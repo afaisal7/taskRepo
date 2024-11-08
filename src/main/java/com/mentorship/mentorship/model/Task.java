@@ -1,24 +1,24 @@
 package com.mentorship.mentorship.model;
 
 import com.mentorship.mentorship.util.Status;
-import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
 
 import java.time.LocalDateTime;
 
 @Data
-@Entity
+@AllArgsConstructor
+@NoArgsConstructor
 public
 class Task {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String title;
     private String description;
-    @Enumerated(EnumType.STRING)
     private Status status;
     private LocalDateTime fromDate;
     private LocalDateTime toDate;
-    @ManyToOne
-    private User owner;
+    private Long ownerId;
 }
